@@ -135,10 +135,12 @@ function omlxTotals(raw: Rec | null): OmlxTotals | null {
 export async function fetchOmlxStatus(config: ServerConfig): Promise<ServerStatus> {
   const base = `http://localhost:${config.port}/admin/api`;
   const [act, ses, all, mods] = await Promise.allSettled([
-    fetchWithTimeout(`${base}/activity`).then((r) => r.json() as Promise<Rec>),
-    fetchWithTimeout(`${base}/stats?scope=session`).then((r) => r.json() as Promise<Rec>),
-    fetchWithTimeout(`${base}/stats?scope=alltime`).then((r) => r.json() as Promise<Rec>),
-    fetchWithTimeout(`${base}/models`, 5000).then((r) => r.json() as Promise<Rec>),
+    // AUTH FIX (2026-10-31): oMLX instances that require a bearer token (our Mini,
+    // reached over the SSH tunnel) returned 401 here and rendered as "online, 0 models".
+    fetchWithTimeout(`${base}/activity`, undefined, authHeaders(config)).then((r) => r.json() as Promise<Rec>),
+    fetchWithTimeout(`${base}/stats?scope=session`, undefined, authHeaders(config)).then((r) => r.json() as Promise<Rec>),
+    fetchWithTimeout(`${base}/stats?scope=alltime`, undefined, authHeaders(config)).then((r) => r.json() as Promise<Rec>),
+    fetchWithTimeout(`${base}/models`, 5000, authHeaders(config)).then((r) => r.json() as Promise<Rec>),
   ]);
   const online = markOnline(config.port, act.status === "fulfilled");
   if (act.status !== "fulfilled") return { config, online, error: "activity unavailable" };
