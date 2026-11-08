@@ -12,10 +12,13 @@ import { SystemCard } from "./system-card";
 import { LoadHistory } from "./load-history";
 import { ThermalHistory } from "./thermal-history";
 import { LiveRequests } from "./live-requests";
+import { ViewSwitch } from "./view-switch";
+import { useViewMode, VIEW_MODES } from "@/lib/view-prefs";
 import { counters } from "@/lib/counters";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function Dashboard() {
+  const { mode, setMode } = useViewMode();
   const { data: serversData, isLoading: serversLoading } = useServersData();
   const { data: gpuData } = useGpuData();
   const timeSeries = useTimeSeries(serversData, gpuData);
@@ -61,24 +64,44 @@ export function Dashboard() {
 
   return (
     <div className="space-y-4 p-6">
-      <GlobalStats stats={aggregated} gpu={gpuData?.gpu} />
+      {/* View density: the page holds live requests, two history charts, one
+          card per machine and the totals. Compact keeps the totals and the
+          machines, Standard adds live requests and folds the history away,
+          Full opens everything. The choice is remembered per browser. */}
+      <div className="sticky top-0 z-10 -mx-6 -mt-6 flex flex-wrap items-center justify-between gap-2 border-b bg-background/95 px-6 py-2 backdrop-blur">
+        <span className="text-xs text-muted-foreground">
+          {VIEW_MODES.find((v) => v.id === mode)?.hint}
+        </span>
+        <ViewSwitch mode={mode} onChange={setMode} />
+      </div>
 
-      <LiveRequests servers={serversData?.servers ?? []} timestamp={serversData?.timestamp} />
+      <GlobalStats stats={aggregated} gpu={gpuData?.gpu} defaultOpen />
+
+      {mode !== "compact" && (
+        <LiveRequests servers={serversData?.servers ?? []} timestamp={serversData?.timestamp} defaultOpen />
+      )}
 
       {/* One history card for the whole server. The former live "GPU load" and
           "Throughput" cards showed the same series over the last few minutes
           only while the page was open — the 1h range here covers that. */}
-      <LoadHistory />
+      {mode !== "compact" && <LoadHistory defaultOpen={mode === "full"} />}
 
-      <ThermalHistory />
+      {mode !== "compact" && <ThermalHistory defaultOpen={mode === "full"} />}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <SystemCard system={gpuData?.system} gpu={gpuData?.gpu} />
+      {/* Compact puts the machine cards side by side (one column each, narrower
+          gap); Standard and Full give each engine the width its charts need.
+          In Compact the host card starts folded — the machine cards are the
+          point of that view. */}
+      <div className={mode === "compact"
+        ? "grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3"
+        : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"}>
+        <SystemCard system={gpuData?.system} gpu={gpuData?.gpu} defaultOpen={mode !== "compact"} />
         {serversData?.servers.map((server) =>
           server.config.framework === "splash" ? (
             <SplashCard key={server.config.id} server={server} history={timeSeries} timestamp={serversData.timestamp} />
           ) : server.config.framework === "omlx" ? (
-            <OmlxCard key={server.config.id} server={server} throughput={realtimeThroughput[server.config.id]} history={timeSeries} />
+            <OmlxCard key={server.config.id} server={server} throughput={realtimeThroughput[server.config.id]}
+                      history={timeSeries} compact={mode === "compact"} />
           ) : (
             <ServerCard
               key={server.config.id}

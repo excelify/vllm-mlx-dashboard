@@ -8,29 +8,39 @@ import { StatusBadge } from "./status-badge";
 import { MetricValue, formatNumber } from "./metric-value";
 import { MultiChart } from "./multi-chart";
 import { Bar, Section, fmtBytes, fmtDuration } from "./engine-ui";
+import { cn } from "@/lib/utils";
 
 /**
  * oMLX serves several models from one process. Unlike Splash it exposes every
  * request individually — queued (with its position), in prefill (processed /
  * total, speed, ETA) and generating (tokens, tok/s) — so the card lists them.
  */
-export function OmlxCard({ server, throughput, history }: {
+export function OmlxCard({ server, throughput, history, compact = false }: {
   server: ServerStatus;
   throughput?: ServerThroughput;
   history: TimeSeriesPoint[];
+  /** Compact mode: one column wide, key numbers only, no charts or totals. */
+  compact?: boolean;
 }) {
   const { config, online, omlx, error } = server;
   const o = omlx;
   const busy = o ? o.total_active > 0 : false;
+
+  // Full width when there is room for the charts and per-request detail; one
+  // column per machine in Compact so both Macs sit side by side.
+  const cardClass = cn(
+    "relative overflow-hidden",
+    compact ? "md:col-span-1 gap-2 py-3" : "md:col-span-2 lg:col-span-3"
+  );
 
   // oMLX is only the fallback now (and the codegen escalation model): most of
   // the time nothing is loaded. Then the full card is a big empty box, so it
   // collapses to one line — and expands by itself as soon as a model loads.
   if (online && o && o.models.length === 0 && o.total_active === 0 && o.total_waiting === 0) {
     return (
-      <Card className="relative overflow-hidden md:col-span-2 lg:col-span-3">
+      <Card className={cardClass}>
         <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: config.color }} />
-        <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3">
+        <CardContent className="flex flex-wrap items-center justify-between gap-2 py-0">
           <div className="min-w-0">
             <span className="text-sm font-medium">{config.name}</span>
             <span className="ml-2 text-xs text-muted-foreground">
@@ -48,9 +58,9 @@ export function OmlxCard({ server, throughput, history }: {
   }
 
   return (
-    <Card className="relative overflow-hidden md:col-span-2 lg:col-span-3">
+    <Card className={cardClass}>
       <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: config.color }} />
-      <CardHeader className="pb-2">
+      <CardHeader className={compact ? "pb-1" : "pb-2"}>
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <CardTitle className="text-sm font-medium">{config.name}</CardTitle>
@@ -64,11 +74,43 @@ export function OmlxCard({ server, throughput, history }: {
           {o?.session && <span className="text-xs text-muted-foreground">up {fmtDuration(o.session.uptime_seconds)}</span>}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className={compact ? "pt-0" : undefined}>
         {!online ? (
           <p className="text-xs text-muted-foreground">Server unavailable</p>
         ) : !o ? (
           <p className="text-xs text-red-400">{error ?? "Waiting for data..."}</p>
+        ) : compact ? (
+          /* Compact: the four numbers that answer "is this Mac working", the
+             memory bar, and one line per loaded model. No charts, no totals,
+             no per-request detail — that is what Standard and Full are for. */
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <MetricValue label="Generation" value={throughput?.generation ?? 0} suffix="tok/s" />
+              <MetricValue label="Running" value={`${o.total_active}`} />
+              <MetricValue label="Waiting" value={`${o.total_waiting}`} highlight={o.total_waiting > 0} />
+              <MetricValue label="Prompt" value={throughput?.prompt ?? 0} suffix="tok/s" />
+            </div>
+            <Bar value={o.memory_max_bytes ? (o.memory_used_bytes / o.memory_max_bytes) * 100 : 0}
+                 color={o.pressure === "ok" ? "bg-blue-500" : "bg-amber-500"}
+                 marks={[o.memory_soft_bytes, o.memory_hard_bytes].filter((x): x is number => x != null)
+                   .map((x) => (x / o.memory_max_bytes) * 100)}
+                 label={`${fmtBytes(o.memory_used_bytes)} / ${fmtBytes(o.memory_max_bytes)} · ${o.pressure}`} />
+            {o.models.length > 0 && (
+              <div className="space-y-1">
+                {o.models.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between gap-2 text-[11px]">
+                    <span className="min-w-0 truncate font-mono" title={m.id}>{m.id}</span>
+                    <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
+                      {fmtBytes(m.size_bytes)}
+                      {m.active_requests || m.waiting_requests
+                        ? ` · ${m.active_requests} run${m.waiting_requests ? ` · ${m.waiting_requests} q` : ""}`
+                        : m.is_loading ? " · loading" : " · idle"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           <div className="grid gap-5 lg:grid-cols-2">
             <div className="space-y-4">
