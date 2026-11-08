@@ -1,6 +1,8 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapseChevron } from "./view-switch";
+import { useSectionOpen } from "@/lib/view-prefs";
 import { ServerStatus } from "@/types";
 import { useRequestRates } from "@/hooks/use-request-rates";
 import { KIND_STYLE, PRIORITY_STYLE, RequestList, RequestRowData, requestKey, requestKind } from "./request-progress";
@@ -10,7 +12,8 @@ import { KIND_STYLE, PRIORITY_STYLE, RequestList, RequestRowData, requestKey, re
  * server, phase and progress, in server order and then submission order so
  * rows keep their place between polls.
  */
-export function LiveRequests({ servers, timestamp }: { servers: ServerStatus[]; timestamp?: number }) {
+export function LiveRequests({ servers, timestamp, defaultOpen = true }: { servers: ServerStatus[]; timestamp?: number; defaultOpen?: boolean }) {
+  const { open, toggle } = useSectionOpen("live-requests", defaultOpen);
   const live = servers.flatMap((server) =>
     (server.online ? server.splash?.active_requests ?? [] : []).map((request) => ({
       key: requestKey(server.config.id, request.id),
@@ -31,10 +34,13 @@ export function LiveRequests({ servers, timestamp }: { servers: ServerStatus[]; 
   const unreported = servers.filter((s) => s.config.framework === "splash" && s.online && s.splash && s.splash.active_requests == null);
 
   return (
-    <Card>
+    <Card className={open ? undefined : "gap-0 py-3"}>
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <CardTitle className="text-sm font-medium">Live requests</CardTitle>
+          <div className="flex items-center gap-1">
+            <CollapseChevron open={open} onToggle={toggle} label="Live requests" />
+            <CardTitle className="text-sm font-medium">Live requests</CardTitle>
+          </div>
           <span className="text-xs text-muted-foreground font-mono tabular-nums">
             {rows.length} running · {count("prefill")} encoding · {count("decode")} decoding · {waiting} waiting
           </span>
@@ -58,6 +64,7 @@ export function LiveRequests({ servers, timestamp }: { servers: ServerStatus[]; 
           )}
         </div>
       </CardHeader>
+      {open && (
       <CardContent className="space-y-2">
         <RequestList rows={rows} empty="No requests running." />
         {unreported.length > 0 && (
@@ -66,6 +73,7 @@ export function LiveRequests({ servers, timestamp }: { servers: ServerStatus[]; 
           </p>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

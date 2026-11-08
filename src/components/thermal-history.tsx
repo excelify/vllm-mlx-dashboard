@@ -6,6 +6,8 @@ import {
   Area, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapseChevron } from "./view-switch";
+import { useSectionOpen } from "@/lib/view-prefs";
 import { SERVERS } from "@/lib/server-config";
 import type { ThermalEpisode, ThermalHistoryResponse } from "@/types";
 
@@ -51,8 +53,9 @@ function engineName(id: string): string {
  * clock chart shows. The episodes list every stretch under pressure with what
  * ran during it, to see what heats the Mac and when.
  */
-export function ThermalHistory() {
+export function ThermalHistory({ defaultOpen = true }: { defaultOpen?: boolean }) {
   const [range, setRange] = useState<Range>("24h");
+  const { open, toggle } = useSectionOpen("thermal-history", defaultOpen);
   const { data } = useSWR<ThermalHistoryResponse>(`/api/thermal?range=${range}`, fetcher, {
     refreshInterval: range === "1h" ? 10_000 : 60_000,
     keepPreviousData: true,
@@ -64,10 +67,13 @@ export function ThermalHistory() {
   const throttledShare = data ? data.pressure_share.slice(1).reduce((a, b) => a + b, 0) : 0;
 
   return (
-    <Card>
+    <Card className={open ? undefined : "gap-0 py-3"}>
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-sm font-medium">Thermals &amp; GPU throttling</CardTitle>
+          <div className="flex items-center gap-1">
+            <CollapseChevron open={open} onToggle={toggle} label="Thermals and GPU throttling" />
+            <CardTitle className="text-sm font-medium">Thermals &amp; GPU throttling</CardTitle>
+          </div>
           <div className="flex items-center gap-2">
             {data && (
               <span className="text-[10px] text-muted-foreground">
@@ -85,6 +91,7 @@ export function ThermalHistory() {
           </div>
         </div>
       </CardHeader>
+      {open && (
       <CardContent className="space-y-4">
         {now && (
           <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-3 lg:grid-cols-6">
@@ -153,6 +160,7 @@ export function ThermalHistory() {
 
         {data && <Episodes episodes={data.episodes} share={data.pressure_share} />}
       </CardContent>
+      )}
     </Card>
   );
 }

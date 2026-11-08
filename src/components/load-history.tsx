@@ -6,6 +6,8 @@ import {
   Area, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapseChevron } from "./view-switch";
+import { useSectionOpen } from "@/lib/view-prefs";
 import { SERVERS } from "@/lib/server-config";
 import type { LoadHistoryResponse, LoadPoint } from "@/types";
 
@@ -26,8 +28,9 @@ const tooltip = {
  * open. Each point is a bucket: the line is the average, the faint band the
  * peak, so a short spike does not vanish in the mean.
  */
-export function LoadHistory() {
+export function LoadHistory({ defaultOpen = true }: { defaultOpen?: boolean }) {
   const [range, setRange] = useState<Range>("6h");
+  const { open, toggle } = useSectionOpen("load-history", defaultOpen);
   const { data } = useSWR<LoadHistoryResponse>(`/api/history?range=${range}`, fetcher, {
     refreshInterval: range === "1h" ? 10_000 : 60_000,
     keepPreviousData: true,
@@ -40,10 +43,13 @@ export function LoadHistory() {
     pts.some((p) => Number(p[`${s.id}_prompt` as keyof LoadPoint]) > 0 || Number(p[`${s.id}_gen` as keyof LoadPoint]) > 0));
 
   return (
-    <Card>
+    <Card className={open ? undefined : "gap-0 py-3"}>
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-sm font-medium">Server load over time</CardTitle>
+          <div className="flex items-center gap-1">
+            <CollapseChevron open={open} onToggle={toggle} label="Server load over time" />
+            <CardTitle className="text-sm font-medium">Server load over time</CardTitle>
+          </div>
           <div className="flex items-center gap-2">
             {data && (
               <span className="text-[10px] text-muted-foreground">
@@ -61,6 +67,7 @@ export function LoadHistory() {
           </div>
         </div>
       </CardHeader>
+      {open && (
       <CardContent>
         {pts.length < 2 ? (
           <p className="py-6 text-center text-xs text-muted-foreground">
@@ -108,6 +115,7 @@ export function LoadHistory() {
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }
