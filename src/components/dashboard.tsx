@@ -75,7 +75,7 @@ export function Dashboard() {
         <ViewSwitch mode={mode} onChange={setMode} />
       </div>
 
-      <GlobalStats stats={aggregated} gpu={gpuData?.gpu} />
+      <GlobalStats stats={aggregated} gpu={gpuData?.gpu} defaultOpen />
 
       {mode !== "compact" && (
         <LiveRequests servers={serversData?.servers ?? []} timestamp={serversData?.timestamp} defaultOpen />
@@ -88,13 +88,20 @@ export function Dashboard() {
 
       {mode !== "compact" && <ThermalHistory defaultOpen={mode === "full"} />}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <SystemCard system={gpuData?.system} gpu={gpuData?.gpu} />
+      {/* Compact puts the machine cards side by side (one column each, narrower
+          gap); Standard and Full give each engine the width its charts need.
+          In Compact the host card starts folded — the machine cards are the
+          point of that view. */}
+      <div className={mode === "compact"
+        ? "grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3"
+        : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"}>
+        <SystemCard system={gpuData?.system} gpu={gpuData?.gpu} defaultOpen={mode !== "compact"} />
         {serversData?.servers.map((server) =>
           server.config.framework === "splash" ? (
             <SplashCard key={server.config.id} server={server} history={timeSeries} timestamp={serversData.timestamp} />
           ) : server.config.framework === "omlx" ? (
-            <OmlxCard key={server.config.id} server={server} throughput={realtimeThroughput[server.config.id]} history={timeSeries} />
+            <OmlxCard key={server.config.id} server={server} throughput={realtimeThroughput[server.config.id]}
+                      history={timeSeries} compact={mode === "compact"} />
           ) : (
             <ServerCard
               key={server.config.id}

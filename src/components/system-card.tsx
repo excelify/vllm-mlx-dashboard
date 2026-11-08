@@ -4,17 +4,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GpuMetrics, SystemMetrics } from "@/types";
 import { MetricValue } from "./metric-value";
 import { Bar, Section, fmtBytes } from "./engine-ui";
+import { CollapseChevron } from "./view-switch";
+import { useSectionOpen } from "@/lib/view-prefs";
 
 /** The machine under all engines: unified memory, swap, CPU load, GPU, processes. */
-export function SystemCard({ system, gpu }: { system?: SystemMetrics; gpu?: GpuMetrics }) {
+export function SystemCard({ system, gpu, defaultOpen = true }: {
+  system?: SystemMetrics;
+  gpu?: GpuMetrics;
+  defaultOpen?: boolean;
+}) {
+  const { open, toggle } = useSectionOpen("system-card", defaultOpen);
   if (!system) return null;
   const s = system;
   const used = s.memory_total_bytes ? (s.memory_used_bytes / s.memory_total_bytes) * 100 : 0;
   return (
-    <Card className="md:col-span-2 lg:col-span-3">
+    <Card className={`md:col-span-2 lg:col-span-3 ${open ? "" : "gap-0 py-3"}`}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">AI server · studio</CardTitle>
+        <div className="flex items-center gap-1">
+          <CollapseChevron open={open} onToggle={toggle} label="AI server · studio" />
+          <CardTitle className="text-sm font-medium">AI server · studio</CardTitle>
+        </div>
       </CardHeader>
+      {open && (
       <CardContent>
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="space-y-3">
@@ -63,6 +74,7 @@ export function SystemCard({ system, gpu }: { system?: SystemMetrics; gpu?: GpuM
           </Section>
         </div>
       </CardContent>
+      )}
     </Card>
   );
 }
